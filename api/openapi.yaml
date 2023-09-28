@@ -1,0 +1,3203 @@
+openapi: 3.0.0
+info:
+  description: |
+    # Introduction
+      This document outlines the API specification for the Economy API.
+      The Economy service allows the game client to retrieve and modify a player's economy resources in the cloud.
+    # Concepts
+      ## Resources
+      Economy currently allows interaction with the following types of resources:
+      - Currencies: A resource that, when defined, contains two parameters: Initial and Max. The Initial parameter determines how much of the currency a game assigns to a player upon first interacting with the Economy system. The Max parameter determines how much of the currency the player is allowed to have.
+      - Inventory Items: A resource that doesn't have any set parameters; its intended use is to indicate the ownership or acquisition of an item in-game, for example, Sword and Shield.
+        A game client can add, remove or update the associated data of an instance of a configured inventory item from the player's inventory.
+      - Virtual Purchases: A transactional resource to implement a shop or trade feature. Allows the player to buy items/currencies using the previously defined currencies or inventory items.
+        A game client can redeem a virtual purchase and the player's account updates with the rewards if the costs criteria are met.
+      - Real Money Purchases: A transactional resource with the intended use to facilitate a shop or trade feature. Allows the player to buy any amount of items/currencies through an in-app purchase. Only uses the previously defined currencies or inventory items.
+        A game client can redeem a real money purchase and the player's account updates with the rewards.
+
+      The above resources also have an optional Custom Data parameter that can be populated with JSON data from the dashboard to allow clients to read bespoke data.
+      ## Writelock
+      The WriteLock is an integer that is automatically incremented serverside whenever a request that changes the stored value of a player's account or inventory.
+      The purpose of the WriteLock is to help prevent requests from the same or other game clients happening out-of-sync.
+      This parameter is optional, but when supplied with a request, the service does a comparison with the stored WriteLock on the server, and returns an error on mismatch.
+      ## Rate Limits
+      The API has rate limiting in place. Requests are limited on a per-player basis up to 150 requests per minute.
+      The API responds with a `429` HTTP status code if the requests exceed the rate limit.
+      Responses with a `429` status code include a `Retry-After` header to be used in conjunction with a client's retry logic, the value is the number of seconds until a request for the given player is accepted.
+  title: Economy API
+  version: 2.0.0
+servers:
+- url: https://economy.services.api.unity.com
+tags:
+- description: Associated with retrieving remote config
+  name: Configuration
+- description: Associated with player currency actions
+  name: Currencies
+- description: Associated with player inventory actions
+  name: Inventory
+- description: Associated with player purchasing (virtual/ real money) actions
+  name: Purchases
+paths:
+  /v2/projects/{projectId}/players/{playerId}/currencies:
+    get:
+      description: |-
+        Get a list of currency balances for a player.
+        Results ordered in ascending currency ID.
+      operationId: getPlayerCurrencies
+      parameters:
+      - description: ID of the project.
+        explode: false
+        in: path
+        name: projectId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the player.
+        explode: false
+        in: path
+        name: playerId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Configuration assignment hash that should be used when processing
+          this request.
+        explode: true
+        in: query
+        name: configAssignmentHash
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Unique identifier that identifies an installation on the client’s
+          device. The same player can have different installationIds if they have
+          the game installed on different devices. It is available to all Unity packages
+          that integrate with the Services SDK Core package.
+        explode: false
+        in: header
+        name: unity-installation-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: A unique string that identifies the player and is consistent
+          across their subsequent play sessions for analytics purposes. It is the
+          primary user identifier and it comes from the Core package.
+        explode: false
+        in: header
+        name: analytics-user-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - allowEmptyValue: true
+        description: The currency ID after which to retrieve the next page of balances.
+        explode: true
+        in: query
+        name: after
+        required: false
+        schema:
+          pattern: "^[A-Za-z0-9_-]+$"
+          type: string
+        style: form
+      - allowEmptyValue: true
+        description: Number of currencies to be returned. Defaults to 20.
+        explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/player_currency_balance_response'
+          description: OK
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Not Found
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: The number of seconds until a request is accepted.
+              explode: false
+              schema:
+                type: number
+              style: simple
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Service Unavailable
+      security:
+      - Client: []
+      summary: Player currency balances
+      tags:
+      - Currencies
+  /v2/projects/{projectId}/players/{playerId}/currencies/{currencyId}:
+    put:
+      description: Set a player's currency balance.
+      operationId: setPlayerCurrencyBalance
+      parameters:
+      - description: ID of the project.
+        explode: false
+        in: path
+        name: projectId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the player.
+        explode: false
+        in: path
+        name: playerId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Resource ID of the currency.
+        explode: false
+        in: path
+        name: currencyId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Configuration assignment hash that should be used when processing
+          this request.
+        explode: true
+        in: query
+        name: configAssignmentHash
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Unique identifier that identifies an installation on the client’s
+          device. The same player can have different installationIds if they have
+          the game installed on different devices. It is available to all Unity packages
+          that integrate with the Services SDK Core package.
+        explode: false
+        in: header
+        name: unity-installation-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: A unique string that identifies the player and is consistent
+          across their subsequent play sessions for analytics purposes. It is the
+          primary user identifier and it comes from the Core package.
+        explode: false
+        in: header
+        name: analytics-user-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/currency-balance-request'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/currency-balance-response'
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/setPlayerCurrencyBalance_400_response'
+          description: |-
+            Bad Request. Returned code indicates one of:
+               - Request parameter validation failure
+               - Other
+             See the response schema for more details
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/error-response-conflict-currency-balance'
+          description: "Conflict \n- Write lock does not match"
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: |-
+            Unprocessable entity
+            - Currency maximum would be exceeded
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: The number of seconds until a request is accepted.
+              explode: false
+              schema:
+                type: number
+              style: simple
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Service Unavailable
+      security:
+      - Client: []
+      summary: Set currency balance
+      tags:
+      - Currencies
+  /v2/projects/{projectId}/players/{playerId}/currencies/{currencyId}/increment:
+    post:
+      description: Increment a player's currency balance by a given value.
+      operationId: incrementPlayerCurrencyBalance
+      parameters:
+      - description: ID of the project.
+        explode: false
+        in: path
+        name: projectId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the player.
+        explode: false
+        in: path
+        name: playerId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Resource ID of the currency.
+        explode: false
+        in: path
+        name: currencyId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Configuration assignment hash that should be used when processing
+          this request.
+        explode: true
+        in: query
+        name: configAssignmentHash
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Unique identifier that identifies an installation on the client’s
+          device. The same player can have different installationIds if they have
+          the game installed on different devices. It is available to all Unity packages
+          that integrate with the Services SDK Core package.
+        explode: false
+        in: header
+        name: unity-installation-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: A unique string that identifies the player and is consistent
+          across their subsequent play sessions for analytics purposes. It is the
+          primary user identifier and it comes from the Core package.
+        explode: false
+        in: header
+        name: analytics-user-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/currency-modify-balance-request'
+        description: ""
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/currency-balance-response'
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/setPlayerCurrencyBalance_400_response'
+          description: |-
+            Bad Request. Returned code indicates one of:
+               - Request parameter validation failure
+               - Other
+             See the response schema for more details
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/error-response-conflict-currency-balance'
+          description: "Conflict \n- Write lock does not match"
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: |-
+            Unprocessable entity
+            - Currency maximum would be exceeded
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: The number of seconds until a request is accepted.
+              explode: false
+              schema:
+                type: number
+              style: simple
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Service Unavailable
+      security:
+      - Client: []
+      summary: Increment currency balance
+      tags:
+      - Currencies
+  /v2/projects/{projectId}/players/{playerId}/currencies/{currencyId}/decrement:
+    post:
+      description: Decrements a player's currency balance by a given value.
+      operationId: decrementPlayerCurrencyBalance
+      parameters:
+      - description: ID of the project.
+        explode: false
+        in: path
+        name: projectId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the player.
+        explode: false
+        in: path
+        name: playerId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Resource ID of the currency.
+        explode: false
+        in: path
+        name: currencyId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Configuration assignment hash that should be used when processing
+          this request.
+        explode: true
+        in: query
+        name: configAssignmentHash
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Unique identifier that identifies an installation on the client’s
+          device. The same player can have different installationIds if they have
+          the game installed on different devices. It is available to all Unity packages
+          that integrate with the Services SDK Core package.
+        explode: false
+        in: header
+        name: unity-installation-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: A unique string that identifies the player and is consistent
+          across their subsequent play sessions for analytics purposes. It is the
+          primary user identifier and it comes from the Core package.
+        explode: false
+        in: header
+        name: analytics-user-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/currency-modify-balance-request'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/currency-balance-response'
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/setPlayerCurrencyBalance_400_response'
+          description: |-
+            Bad Request. Returned code indicates one of:
+               - Request parameter validation failure
+               - Other
+             See the response schema for more details
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/error-response-conflict-currency-balance'
+          description: "Conflict \n- Write lock does not match"
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: |-
+            Unprocessable entity
+            - Insufficient funds
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: The number of seconds until a request is accepted.
+              explode: false
+              schema:
+                type: number
+              style: simple
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Service Unavailable
+      security:
+      - Client: []
+      summary: Decrement currency balance
+      tags:
+      - Currencies
+  /v2/projects/{projectId}/players/{playerId}/inventory:
+    get:
+      description: |-
+        Get a list of inventory for a player.
+        Results ordered by ascending `playersInventoryItemId`.
+        `playersIventoryItemIds` and `inventoryItemIds` filters are optional, if not given all items will be returned. If both are given an item must match both to be returned.
+      operationId: getPlayerInventory
+      parameters:
+      - description: ID of the project.
+        explode: false
+        in: path
+        name: projectId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the player.
+        explode: false
+        in: path
+        name: playerId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Configuration assignment hash that should be used when processing
+          this request.
+        explode: true
+        in: query
+        name: configAssignmentHash
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Unique identifier that identifies an installation on the client’s
+          device. The same player can have different installationIds if they have
+          the game installed on different devices. It is available to all Unity packages
+          that integrate with the Services SDK Core package.
+        explode: false
+        in: header
+        name: unity-installation-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: A unique string that identifies the player and is consistent
+          across their subsequent play sessions for analytics purposes. It is the
+          primary user identifier and it comes from the Core package.
+        explode: false
+        in: header
+        name: analytics-user-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - allowEmptyValue: true
+        description: The `playersInventoryItemId` after which to retrieve the next
+          page of balances.
+        explode: true
+        in: query
+        name: after
+        required: false
+        schema:
+          maxLength: 50
+          pattern: "^[A-Za-z0-9_-]+$"
+          type: string
+        style: form
+      - allowEmptyValue: true
+        description: Number of items to be returned. Defaults to 20.
+        explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+        style: form
+      - description: "List of `playersInventoryItemIds` in array notation, for example,\
+          \ `playersInventoryItemIds[]=ID1&playersInventoryItemIds[]=ID2`."
+        explode: true
+        in: query
+        name: playersInventoryItemIds
+        required: false
+        schema:
+          items:
+            maxLength: 50
+            pattern: "^[A-Za-z0-9_-]+$"
+            type: string
+          maxItems: 20
+          minItems: 1
+          type: array
+        style: form
+      - description: "List of inventory item IDs in array notation, for example, `inventoryItemIds[]=ID1&inventoryItemIds[]=ID2`."
+        explode: true
+        in: query
+        name: inventoryItemIds
+        required: false
+        schema:
+          items:
+            maxLength: 50
+            pattern: "^[A-Z0-9_-]+$"
+            type: string
+          maxItems: 5
+          minItems: 1
+          type: array
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/player_inventory_response'
+          description: OK
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Not Found
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: The number of seconds until a request is accepted.
+              explode: false
+              schema:
+                type: number
+              style: simple
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Service Unavailable
+      security:
+      - Client: []
+      summary: List player inventory
+      tags:
+      - Inventory
+    post:
+      description: Add an item to a player's inventory.
+      operationId: addInventoryItem
+      parameters:
+      - description: ID of the project.
+        explode: false
+        in: path
+        name: projectId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the player.
+        explode: false
+        in: path
+        name: playerId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Configuration assignment hash that should be used when processing
+          this request.
+        explode: true
+        in: query
+        name: configAssignmentHash
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Unique identifier that identifies an installation on the client’s
+          device. The same player can have different installationIds if they have
+          the game installed on different devices. It is available to all Unity packages
+          that integrate with the Services SDK Core package.
+        explode: false
+        in: header
+        name: unity-installation-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: A unique string that identifies the player and is consistent
+          across their subsequent play sessions for analytics purposes. It is the
+          primary user identifier and it comes from the Core package.
+        explode: false
+        in: header
+        name: analytics-user-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/add-inventory-request'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inventory-response'
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/setPlayerCurrencyBalance_400_response'
+          description: |-
+            Bad Request. Returned code indicates one of:
+               - Request parameter validation failure
+               - Other
+             See the response schema for more details
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/error-response-conflict-inventory'
+          description: |-
+            Conflict
+            - Write lock does not match
+            - Instance with `playersInventoryItemId` already exists
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Instance limit
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: The number of seconds until a request is accepted.
+              explode: false
+              schema:
+                type: number
+              style: simple
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Service Unavailable
+      security:
+      - Client: []
+      summary: Add inventory item
+      tags:
+      - Inventory
+  /v2/projects/{projectId}/players/{playerId}/inventory/{playersInventoryItemId}:
+    delete:
+      description: Delete a player's inventory item.
+      operationId: deleteInventoryItem
+      parameters:
+      - description: ID of the project.
+        explode: false
+        in: path
+        name: projectId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the player.
+        explode: false
+        in: path
+        name: playerId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: The `playersInventoryItemId` of the item to be updated.
+        explode: false
+        in: path
+        name: playersInventoryItemId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Configuration assignment hash that should be used when processing
+          this request.
+        explode: true
+        in: query
+        name: configAssignmentHash
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Unique identifier that identifies an installation on the client’s
+          device. The same player can have different installationIds if they have
+          the game installed on different devices. It is available to all Unity packages
+          that integrate with the Services SDK Core package.
+        explode: false
+        in: header
+        name: unity-installation-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: A unique string that identifies the player and is consistent
+          across their subsequent play sessions for analytics purposes. It is the
+          primary user identifier and it comes from the Core package.
+        explode: false
+        in: header
+        name: analytics-user-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: The writelock for a database entry.
+        explode: true
+        in: query
+        name: writeLock
+        required: false
+        schema:
+          type: string
+        style: form
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/inventory-delete-request'
+      responses:
+        "200":
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/setPlayerCurrencyBalance_400_response'
+          description: |-
+            Bad Request. Returned code indicates one of:
+               - Request parameter validation failure
+               - Other
+             See the response schema for more details
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/error-response-conflict-inventory-delete'
+          description: |-
+            Conflict
+            - Write lock does not match
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: The number of seconds until a request is accepted.
+              explode: false
+              schema:
+                type: number
+              style: simple
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: |-
+            Service Unavailable
+            - Unable to acquire lock on resources
+            - Datastore unavailable
+      security:
+      - Client: []
+      summary: Delete player's inventory item
+      tags:
+      - Inventory
+    put:
+      description: Update a player's inventory item.
+      operationId: updateInventoryItem
+      parameters:
+      - description: ID of the project.
+        explode: false
+        in: path
+        name: projectId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the player.
+        explode: false
+        in: path
+        name: playerId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: The `playersInventoryItemId` of the item to be updated.
+        explode: false
+        in: path
+        name: playersInventoryItemId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Configuration assignment hash that should be used when processing
+          this request.
+        explode: true
+        in: query
+        name: configAssignmentHash
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Unique identifier that identifies an installation on the client’s
+          device. The same player can have different installationIds if they have
+          the game installed on different devices. It is available to all Unity packages
+          that integrate with the Services SDK Core package.
+        explode: false
+        in: header
+        name: unity-installation-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: A unique string that identifies the player and is consistent
+          across their subsequent play sessions for analytics purposes. It is the
+          primary user identifier and it comes from the Core package.
+        explode: false
+        in: header
+        name: analytics-user-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/inventory-request-update'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inventory-response'
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/setPlayerCurrencyBalance_400_response'
+          description: |-
+            Bad Request. Returned code indicates one of:
+               - Request parameter validation failure
+               - Other
+             See the response schema for more details
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/error-response-conflict-inventory-update'
+          description: |-
+            Conflict
+            - Write lock does not match
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: The number of seconds until a request is accepted.
+              explode: false
+              schema:
+                type: number
+              style: simple
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: |-
+            Service Unavailable
+            - Unable to acquire lock on resources
+            - Datastore unavailable
+      security:
+      - Client: []
+      summary: Update player's inventory item
+      tags:
+      - Inventory
+  /v2/projects/{projectId}/players/{playerId}/purchases/virtual:
+    post:
+      description: Make a virtual purchase for a player.
+      operationId: makeVirtualPurchase
+      parameters:
+      - description: ID of the project.
+        explode: false
+        in: path
+        name: projectId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the player.
+        explode: false
+        in: path
+        name: playerId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Configuration assignment hash that should be used when processing
+          this request.
+        explode: true
+        in: query
+        name: configAssignmentHash
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Unique identifier that identifies an installation on the client’s
+          device. The same player can have different installationIds if they have
+          the game installed on different devices. It is available to all Unity packages
+          that integrate with the Services SDK Core package.
+        explode: false
+        in: header
+        name: unity-installation-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: A unique string that identifies the player and is consistent
+          across their subsequent play sessions for analytics purposes. It is the
+          primary user identifier and it comes from the Core package.
+        explode: false
+        in: header
+        name: analytics-user-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/player-purchase-virtual-request'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/player-purchase-virtual-response'
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/setPlayerCurrencyBalance_400_response'
+          description: |-
+            Bad Request. Returned code indicates one of:
+               - Request parameter validation failure
+               - Other
+             See the response schema for more details
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: |-
+            Unprocessable entity
+            - Costs not met
+            - Currency maximum would be exceeded
+            - Instance limit
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: The number of seconds until a request is accepted.
+              explode: false
+              schema:
+                type: number
+              style: simple
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: |-
+            Service Unavailable
+            - Unable to acquire lock on resources
+            - Datastore unavailable
+      security:
+      - Client: []
+      summary: Make virtual purchase
+      tags:
+      - Purchases
+  /v2/projects/{projectId}/players/{playerId}/purchases/appleappstore:
+    post:
+      description: Redeem an Apple App Store purchase for a player.
+      operationId: redeemAppleAppStorePurchase
+      parameters:
+      - description: ID of the project.
+        explode: false
+        in: path
+        name: projectId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the player.
+        explode: false
+        in: path
+        name: playerId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Configuration assignment hash that should be used when processing
+          this request.
+        explode: true
+        in: query
+        name: configAssignmentHash
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Unique identifier that identifies an installation on the client’s
+          device. The same player can have different installationIds if they have
+          the game installed on different devices. It is available to all Unity packages
+          that integrate with the Services SDK Core package.
+        explode: false
+        in: header
+        name: unity-installation-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: A unique string that identifies the player and is consistent
+          across their subsequent play sessions for analytics purposes. It is the
+          primary user identifier and it comes from the Core package.
+        explode: false
+        in: header
+        name: analytics-user-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/player-purchase-appleappstore-request'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/player-purchase-appleappstore-response'
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/setPlayerCurrencyBalance_400_response'
+          description: |-
+            Bad Request. Returned code indicates one of:
+               - Request parameter validation failure
+               - Other
+             See the response schema for more details
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/redeemAppleAppStorePurchase_422_response'
+          description: |-
+            Unprocessable entity
+            - Currency maximum would be exceeded
+            - Receipt Product ID does not match configuration
+            - Configuration does not include a product ID for this IAP provider
+            - Instance limit
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: The number of seconds until a request is accepted.
+              explode: false
+              schema:
+                type: number
+              style: simple
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: |-
+            Service Unavailable
+            - Unable to acquire lock on resources
+            - Datastore unavailable
+      security:
+      - Client: []
+      summary: Redeem Apple App Store purchase
+      tags:
+      - Purchases
+  /v2/projects/{projectId}/players/{playerId}/purchases/googleplaystore:
+    post:
+      description: Redeem a Google Play store purchase for a player.
+      operationId: redeemGooglePlayPurchase
+      parameters:
+      - description: ID of the project.
+        explode: false
+        in: path
+        name: projectId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the player.
+        explode: false
+        in: path
+        name: playerId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Configuration assignment hash that should be used when processing
+          this request.
+        explode: true
+        in: query
+        name: configAssignmentHash
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Unique identifier that identifies an installation on the client’s
+          device. The same player can have different installationIds if they have
+          the game installed on different devices. It is available to all Unity packages
+          that integrate with the Services SDK Core package.
+        explode: false
+        in: header
+        name: unity-installation-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: A unique string that identifies the player and is consistent
+          across their subsequent play sessions for analytics purposes. It is the
+          primary user identifier and it comes from the Core package.
+        explode: false
+        in: header
+        name: analytics-user-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/player-purchase-googleplaystore-request'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/player-purchase-googleplaystore-response'
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/setPlayerCurrencyBalance_400_response'
+          description: |-
+            Bad Request. Returned code indicates one of:
+               - Request parameter validation failure
+               - Other
+             See the response schema for more details
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/redeemGooglePlayPurchase_422_response'
+          description: |-
+            Unprocessable entity
+            - Currency maximum would be exceeded
+            - Receipt Product ID does not match configuration
+            - Configuration does not include a product ID for this IAP provider
+            - Instance limit
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: The number of seconds until a request is accepted.
+              explode: false
+              schema:
+                type: number
+              style: simple
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: |-
+            Service Unavailable
+            - Unable to acquire lock on resources
+            - Datastore unavailable
+      security:
+      - Client: []
+      summary: Redeem Google Play purchase
+      tags:
+      - Purchases
+  /v2/projects/{projectId}/players/{playerId}/config/resources:
+    get:
+      description: Returns the economy configuration for the player with any overrides
+        applied.
+      operationId: getPlayerConfiguration
+      parameters:
+      - description: ID of the project.
+        explode: false
+        in: path
+        name: projectId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the player.
+        explode: false
+        in: path
+        name: playerId
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Configuration assignment hash that should be used when processing
+          this request.
+        explode: true
+        in: query
+        name: configAssignmentHash
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Unique identifier that identifies an installation on the client’s
+          device. The same player can have different installationIds if they have
+          the game installed on different devices. It is available to all Unity packages
+          that integrate with the Services SDK Core package.
+        explode: false
+        in: header
+        name: unity-installation-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      - description: A unique string that identifies the player and is consistent
+          across their subsequent play sessions for analytics purposes. It is the
+          primary user identifier and it comes from the Core package.
+        explode: false
+        in: header
+        name: analytics-user-id
+        required: false
+        schema:
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/player-configuration-response'
+          description: OK
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/setPlayerCurrencyBalance_400_response'
+          description: |-
+            Bad Request. Returned code indicates one of:
+               - Request parameter validation failure
+               - Other
+             See the response schema for more details
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Not Found
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              description: The number of seconds until a request is accepted.
+              explode: false
+              schema:
+                type: number
+              style: simple
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/basic-error-response'
+          description: |-
+            Service Unavailable
+            - Unable to acquire lock on resources
+            - Datastore unavailable
+      security:
+      - Client: []
+      summary: Get player's configuration
+      tags:
+      - Configuration
+components:
+  parameters:
+    projectId:
+      description: ID of the project.
+      explode: false
+      in: path
+      name: projectId
+      required: true
+      schema:
+        type: string
+      style: simple
+    playerId:
+      description: ID of the player.
+      explode: false
+      in: path
+      name: playerId
+      required: true
+      schema:
+        type: string
+      style: simple
+    configAssignmentHash:
+      description: Configuration assignment hash that should be used when processing
+        this request.
+      explode: true
+      in: query
+      name: configAssignmentHash
+      required: false
+      schema:
+        type: string
+      style: form
+    installationId:
+      description: Unique identifier that identifies an installation on the client’s
+        device. The same player can have different installationIds if they have the
+        game installed on different devices. It is available to all Unity packages
+        that integrate with the Services SDK Core package.
+      explode: false
+      in: header
+      name: unity-installation-id
+      required: false
+      schema:
+        type: string
+      style: simple
+    writeLock:
+      description: The writelock for a database entry.
+      explode: true
+      in: query
+      name: writeLock
+      required: false
+      schema:
+        type: string
+      style: form
+    analyticsUserId:
+      description: A unique string that identifies the player and is consistent across
+        their subsequent play sessions for analytics purposes. It is the primary user
+        identifier and it comes from the Core package.
+      explode: false
+      in: header
+      name: analytics-user-id
+      required: false
+      schema:
+        type: string
+      style: simple
+  responses:
+    error-response-bad-request:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/setPlayerCurrencyBalance_400_response'
+      description: |-
+        Bad Request. Returned code indicates one of:
+           - Request parameter validation failure
+           - Other
+         See the response schema for more details
+    error-response-unprocessable-entity-currency-max-exceeded:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/basic-error-response'
+      description: |-
+        Unprocessable entity
+        - Currency maximum would be exceeded
+    error-response-unprocessable-entity-currency-insufficient-funds:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/basic-error-response'
+      description: |-
+        Unprocessable entity
+        - Insufficient funds
+    error-response-unprocessable-entity-inventory-instance-limit:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/basic-error-response'
+      description: Instance limit
+    error-response-unprocessable-entity-virtual-purchase:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/basic-error-response'
+      description: |-
+        Unprocessable entity
+        - Costs not met
+        - Currency maximum would be exceeded
+        - Instance limit
+    error-response-unprocessable-entity-apple-purchase:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/redeemAppleAppStorePurchase_422_response'
+      description: |-
+        Unprocessable entity
+        - Currency maximum would be exceeded
+        - Receipt Product ID does not match configuration
+        - Configuration does not include a product ID for this IAP provider
+        - Instance limit
+    error-response-unprocessable-entity-google-purchase:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/redeemGooglePlayPurchase_422_response'
+      description: |-
+        Unprocessable entity
+        - Currency maximum would be exceeded
+        - Receipt Product ID does not match configuration
+        - Configuration does not include a product ID for this IAP provider
+        - Instance limit
+    error-response-conflict-currency-balance:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/error-response-conflict-currency-balance'
+      description: "Conflict \n- Write lock does not match"
+    error-response-conflict-inventory:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/error-response-conflict-inventory'
+      description: |-
+        Conflict
+        - Write lock does not match
+        - Instance with `playersInventoryItemId` already exists
+    error-response-conflict-inventory-update:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/error-response-conflict-inventory-update'
+      description: |-
+        Conflict
+        - Write lock does not match
+    error-response-conflict-inventory-delete:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/error-response-conflict-inventory-delete'
+      description: |-
+        Conflict
+        - Write lock does not match
+    error-response-forbidden:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/basic-error-response'
+      description: Forbidden
+    error-response-not-found:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/basic-error-response'
+      description: Not Found
+    error-response-service-unavailable-datastore:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/basic-error-response'
+      description: |-
+        Service Unavailable
+        - Unable to acquire lock on resources
+        - Datastore unavailable
+    error-response-service-unavailable:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/basic-error-response'
+      description: Service Unavailable
+    error-response-too-many-requests:
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/basic-error-response'
+      description: Too Many Requests
+      headers:
+        Retry-After:
+          description: The number of seconds until a request is accepted.
+          explode: false
+          schema:
+            type: number
+          style: simple
+  schemas:
+    currency-balance-request:
+      properties:
+        currencyId:
+          deprecated: true
+          description: Resource ID of the currency.
+          type: string
+        balance:
+          description: The player's balance.
+          format: int64
+          maximum: 999999999999999
+          minimum: 0
+          type: integer
+        writeLock:
+          description: The write lock for the currency balance.
+          type: string
+      required:
+      - balance
+      title: currency-balance-request
+      type: object
+    currency-balance-response:
+      example:
+        writeLock: writeLock
+        balance: 80082819046101
+        created:
+          date: 2020-04-01T13:07:23Z
+        modified:
+          date: 2020-04-01T13:07:23Z
+        currencyId: currencyId
+      properties:
+        currencyId:
+          description: Resource ID of the currency.
+          type: string
+        balance:
+          description: The player's balance.
+          format: int64
+          maximum: 999999999999999
+          minimum: 0
+          type: integer
+        writeLock:
+          description: The write lock for the currency balance.
+          type: string
+        created:
+          $ref: '#/components/schemas/modified-metadata'
+        modified:
+          $ref: '#/components/schemas/modified-metadata'
+      required:
+      - balance
+      - created
+      - currencyId
+      - modified
+      - writeLock
+      title: currency-balance-response
+      type: object
+    add-inventory-request:
+      properties:
+        inventoryItemId:
+          description: Resource ID of the inventory item.
+          maxLength: 50
+          pattern: "^[A-Z0-9_-]+$"
+          type: string
+        playersInventoryItemId:
+          description: "A `playersInventoryItemId` for the item being created. If\
+            \ not given, Economy automatically generates the ID. An ID must be unique\
+            \ for a player."
+          maxLength: 50
+          pattern: "^[A-Za-z0-9_-]+$"
+          type: string
+        instanceData:
+          description: Instance data to be saved against the new inventory item. Max
+            size when serialized 5 KB.
+          nullable: true
+          type: object
+      required:
+      - inventoryItemId
+      title: add-inventory-request
+      type: object
+    inventory-request-update:
+      properties:
+        instanceData:
+          description: Instance data to be saved against the inventory item. Max size
+            when serialized 5 KB.
+          nullable: true
+          type: object
+        writeLock:
+          description: The write lock for the inventory item instance.
+          type: string
+      required:
+      - instanceData
+      title: player-inventory-request-update
+      type: object
+    inventory-delete-request:
+      deprecated: true
+      description: |-
+        The request body has been deprecated in favor of using query parameters due to inconsistent HTTP client support
+        for sending request bodies for DELETE requests. Please use the corresponding query parameters instead, which
+        will take precedence over any request body properties if both are present.
+      properties:
+        writeLock:
+          deprecated: true
+          description: |-
+            The write lock for the inventory item instance.
+            This property has been deprecated. Please use the `writeLock` query parameter instead.
+          type: string
+      title: player-inventory-delete-request
+      type: object
+    inventory-response:
+      example:
+        inventoryItemId: inventoryItemId
+        playersInventoryItemId: playersInventoryItemId
+        writeLock: writeLock
+        created:
+          date: 2020-04-01T13:07:23Z
+        modified:
+          date: 2020-04-01T13:07:23Z
+        instanceData: "{}"
+      properties:
+        playersInventoryItemId:
+          description: ID of the player's inventory item.
+          maxLength: 50
+          pattern: "^[A-Za-z0-9_-]+$"
+          type: string
+        inventoryItemId:
+          description: Resource ID of the inventory item configuration associated
+            with this instance.
+          maxLength: 50
+          pattern: "^[A-Z0-9_-]+$"
+          type: string
+        instanceData:
+          description: Instance data. Max size when serialized 5 KB.
+          nullable: true
+          type: object
+        writeLock:
+          description: The write lock for the inventory item instance.
+          type: string
+        created:
+          $ref: '#/components/schemas/modified-metadata'
+        modified:
+          $ref: '#/components/schemas/modified-metadata'
+      required:
+      - created
+      - inventoryItemId
+      - modified
+      - playersInventoryItemId
+      - writeLock
+      title: inventory-response
+      type: object
+    modified-metadata:
+      example:
+        date: 2020-04-01T13:07:23Z
+      properties:
+        date:
+          description: Date time in ISO 8601 format. `null` if there is no associated
+            value.
+          example: 2020-04-01T13:07:23Z
+          format: date-time
+          nullable: true
+          type: string
+      required:
+      - date
+      title: modified-metadata
+      type: object
+    currency-modify-balance-request:
+      properties:
+        currencyId:
+          deprecated: true
+          description: Resource ID of the currency.
+          type: string
+        amount:
+          description: The value by which to increment or decrement. Zero is allowed
+            but results in no change to the currency balance.
+          format: int64
+          maximum: 999999999999999
+          minimum: 0
+          type: integer
+        writeLock:
+          description: The write lock for the currency balance.
+          type: string
+      required:
+      - amount
+      title: currency-modify-balance-request
+      type: object
+    error-response-conflict-currency-balance:
+      description: An error response sent back upon currency balance conflict.
+      nullable: true
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          description: For example 409
+          type: integer
+        code:
+          description: For example 10204
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        data:
+          $ref: '#/components/schemas/error_response_conflict_currency_balance_data'
+      required:
+      - code
+      - data
+      - detail
+      - status
+      - title
+      - type
+      title: error-response-conflict-currency-balance
+      type: object
+    error-response-conflict-inventory-update:
+      description: An error response sent back upon player inventory item conflict.
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          description: e.g 409
+          type: integer
+        code:
+          description: For example 10204
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        data:
+          $ref: '#/components/schemas/error_response_conflict_inventory_update_data'
+      required:
+      - code
+      - data
+      - detail
+      - status
+      - title
+      - type
+      title: error-response-conflict-inventory-update
+      type: object
+      x-examples:
+        Conflict Error Example:
+          type: problems/data/conflict
+          title: conflict error
+          status: 409
+          code: 10204
+          detail: WriteLock in update request does not match stored WriteLock.
+          data:
+            attempted:
+              instanceData:
+                damage: "14"
+              writeLock: 2509f6b5cbb187b8920a57913eb7fcb0
+            existing:
+              playersInventoryItemId: abc123
+              inventoryItemId: SWORD
+              instanceData:
+                damage: "15"
+              writeLock: 3309f6b5cbb187b8920a57913eb7fc66
+              created:
+                date: 2020-01-01T01:01:01Z
+              modified:
+                date: 2020-02-02T02:02:02Z
+    error-response-conflict-inventory-delete:
+      description: An error response sent back upon player inventory item conflict.
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          description: e.g 409
+          type: integer
+        code:
+          description: For example 10204
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        data:
+          $ref: '#/components/schemas/error_response_conflict_inventory_delete_data'
+      required:
+      - code
+      - data
+      - detail
+      - status
+      - title
+      - type
+      title: error-response-conflict-inventory-delete
+      type: object
+      x-examples:
+        Conflict Error Example:
+          type: problems/data/conflict
+          title: conflict error
+          status: 409
+          code: 10204
+          detail: WriteLock in update request does not match stored WriteLock.
+          data:
+            attempted:
+              playersInventoryItemId: abc123
+              writeLock: 2509f6b5cbb187b8920a57913eb7fcb0
+            existing:
+              playersInventoryItemId: abc123
+              inventoryItemId: SWORD
+              instanceData:
+                damage: "15"
+              writeLock: 3309f6b5cbb187b8920a57913eb7fc66
+              created:
+                date: 2020-01-01T01:01:01Z
+              modified:
+                date: 2020-02-02T02:02:02Z
+    error-response-conflict-inventory:
+      description: An error response sent back upon player inventory item conflict.
+      nullable: true
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          description: e.g 409
+          type: integer
+        code:
+          description: For example 10204
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        data:
+          $ref: '#/components/schemas/error_response_conflict_inventory_update_data'
+      required:
+      - code
+      - data
+      - detail
+      - status
+      - title
+      - type
+      title: error-response-conflict-inventory
+      type: object
+      x-examples:
+        Conflict Error Example:
+          type: problems/data/conflict
+          title: conflict error
+          status: 409
+          code: 10204
+          detail: WriteLock in update request does not match stored WriteLock.
+          data:
+            attempted:
+              playersInventoryItemId: abc123
+              inventoryItemId: SWORD
+              instanceData:
+                damage: "17"
+            existing:
+              playersInventoryItemId: abc123
+              inventoryItemId: SWORD
+              instanceData:
+                damage: "15"
+              writeLock: 2509f6b5cbb187b8920a57913eb7fcb0
+              created:
+                date: 2020-01-01T01:01:01Z
+              modified:
+                date: 2020-02-02T02:02:02Z
+    player-purchase-virtual-request:
+      properties:
+        id:
+          description: ID of the purchase.
+          maxLength: 50
+          pattern: "^[A-Z0-9_-]+$"
+          type: string
+        playersInventoryItemIds:
+          description: IDs of the player's inventory items that should be used for
+            any item costs associated with the purchase.
+          items:
+            maxLength: 50
+            pattern: "^[A-Za-z0-9_-]+$"
+            type: string
+          maxItems: 20
+          type: array
+          uniqueItems: true
+      required:
+      - id
+      title: player-purchase-virtual-request
+      type: object
+    player-purchase-virtual-response:
+      example:
+        costs:
+          currency:
+          - amount: 80082819046101
+            id: id
+          - amount: 80082819046101
+            id: id
+          inventory:
+          - amount: 1
+            playersInventoryItemIds:
+            - playersInventoryItemIds
+            - playersInventoryItemIds
+            id: id
+          - amount: 1
+            playersInventoryItemIds:
+            - playersInventoryItemIds
+            - playersInventoryItemIds
+            id: id
+        rewards:
+          currency:
+          - amount: 80082819046101
+            id: id
+          - amount: 80082819046101
+            id: id
+          inventory:
+          - amount: 1
+            playersInventoryItemIds:
+            - playersInventoryItemIds
+            - playersInventoryItemIds
+            id: id
+          - amount: 1
+            playersInventoryItemIds:
+            - playersInventoryItemIds
+            - playersInventoryItemIds
+            id: id
+      properties:
+        costs:
+          $ref: '#/components/schemas/player_purchase_virtual_response_costs'
+        rewards:
+          $ref: '#/components/schemas/player_purchase_virtual_response_rewards'
+      required:
+      - costs
+      - rewards
+      title: player-purchase-virtual-response
+      type: object
+      x-examples:
+        Simple Purchase:
+          costs:
+            currency:
+            - id: COIN
+              amount: 10
+            inventory: []
+          rewards:
+            currency: []
+            inventory:
+            - id: SWORD
+              amount: 1
+              instanceIds:
+              - 12345678-1234-5678-1234-567812345678
+    currency-exchange-item:
+      example:
+        amount: 80082819046101
+        id: id
+      properties:
+        id:
+          description: ID of the currency.
+          maxLength: 50
+          pattern: "^[A-Z0-9_-]+$"
+          type: string
+        amount:
+          description: Amount of currency added or deducted.
+          format: int64
+          maximum: 999999999999999
+          minimum: 1
+          type: integer
+      required:
+      - amount
+      - id
+      title: currency-exchange-item
+      type: object
+    inventory-exchange-item:
+      example:
+        amount: 1
+        playersInventoryItemIds:
+        - playersInventoryItemIds
+        - playersInventoryItemIds
+        id: id
+      properties:
+        id:
+          description: ID of the inventory item.
+          maxLength: 50
+          pattern: "^[A-Z0-9_-]+$"
+          type: string
+        amount:
+          description: Number of player inventory items.
+          minimum: 1
+          type: integer
+        playersInventoryItemIds:
+          description: The `playersInventoryItemIds` for the player's items to be
+            added or removed.
+          items:
+            maxLength: 50
+            pattern: "^[A-Za-z0-9_-]+$"
+            type: string
+          type: array
+          uniqueItems: true
+      required:
+      - amount
+      - id
+      - playersInventoryItemIds
+      title: inventory-exchange-item
+      type: object
+    basic-error-response:
+      description: |
+        Referenced from - https://tools.ietf.org/html/rfc7807#page-3 Consumers MUST use the 'type' string as the primary identifier for the problem type; the 'title' string is advisory and included only for users who are not aware of the semantics of the URI and do not have the ability to discover them (for example, offline log analysis). Consumers SHOULD NOT automatically dereference the type URI. The "status" member, if present, is only advisory; it conveys the HTTP status code used for the convenience of the consumer. Generators MUST use the same status code in the actual HTTP response, to assure that generic HTTP software that does not understand this format still behaves correctly.  See Section 5 for further caveats regarding its use. Consumers can use the status member to determine what the original status code used by the generator was, in cases where it has been changed (for example, by an intermediary or cache), and when message bodies persist without HTTP information.  Generic HTTP software still uses the HTTP status code. The "detail" member, if present, should focus on helping the client correct the problem, rather than giving debugging information.
+      properties:
+        type:
+          description: "A URI reference [RFC3986] that identifies the problem type.\
+            \ This specification encourages that, when dereferenced, it provide human-readable\
+            \ documentation for the problem type (for example, using HTML [W3C.REC-html5-20141028]).\
+            \ When this member is not present, its value is assumed to be \"about:blank\"\
+            ."
+          type: string
+        title:
+          description: "A short, human-readable summary of the problem type. It SHOULD\
+            \ NOT change from occurrence to occurrence of the problem, except for\
+            \ purposes of localization (for example, using proactive content negotiation;\
+            \ see [RFC7231], Section 3.4)."
+          type: string
+        status:
+          description: "The HTTP status code ([RFC7231], Section 6) generated by the\
+            \ origin server for this occurrence of the problem."
+          type: integer
+        code:
+          description: Service specific error code.
+          type: integer
+        detail:
+          description: A human-readable explanation specific to this occurrence of
+            the problem.
+          type: string
+        instance:
+          description: A URI reference that identifies the specific occurrence of
+            the problem. It may or may not yield further information if dereferenced.
+          type: string
+        details:
+          description: Machine readable service specific errors.
+          items:
+            type: object
+          type: array
+      required:
+      - type
+      title: basic-error-response
+      type: object
+      x-examples:
+        example-1:
+          type: problems/basic
+          title: service unavailable
+          status: 500
+          code: 1000
+          detail: service unavailable
+          details:
+          - health:
+            - service health ping failed
+    validation-error-body:
+      description: Single error in the Validation Error Response.
+      properties:
+        field:
+          type: string
+        messages:
+          items:
+            type: string
+          type: array
+      required:
+      - field
+      - messages
+      title: validation-error-body
+      type: object
+      x-examples: {}
+    validation-error-response:
+      description: |
+        Validation error response when a value provided from the client does not pass validation on server.
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        code:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        errors:
+          items:
+            $ref: '#/components/schemas/validation-error-body'
+          type: array
+      required:
+      - code
+      - detail
+      - errors
+      - status
+      - title
+      - type
+      title: validation-error-response
+      type: object
+      x-examples:
+        Validation Error Example:
+          type: problems/validation
+          title: validation error
+          status: 400
+          code: 1009
+          detail: See 'errors' for specific validation errors
+          errors:
+          - field: name
+            messages:
+            - Only alphanumeric characters allowed
+    player-purchase-appleappstore-request:
+      properties:
+        id:
+          description: ID of the purchase.
+          maxLength: 50
+          pattern: "^[A-Z0-9_-]+$"
+          type: string
+        receipt:
+          description: Receipt data returned from the Apple App Store as a result
+            of a successful purchase. This should be base64 encoded.
+          type: string
+        localCost:
+          description: "The cost of the purchase as an integer in the minor currency\
+            \ format, for example, $1.99 USD would be 199."
+          type: integer
+        localCurrency:
+          description: The ISO-4217 currency code with which the player purchased
+            the IAP.
+          example: USD
+          format: ISO-4217
+          type: string
+      required:
+      - id
+      - localCost
+      - localCurrency
+      - receipt
+      title: player-purchase-appleappstore-request
+      type: object
+    player-purchase-appleappstore-response:
+      example:
+        verification:
+          store:
+            code: code
+            receipt: receipt
+            message: message
+          status: VALID
+        rewards:
+          currency:
+          - amount: 80082819046101
+            id: id
+          - amount: 80082819046101
+            id: id
+          inventory:
+          - amount: 1
+            playersInventoryItemIds:
+            - playersInventoryItemIds
+            - playersInventoryItemIds
+            id: id
+          - amount: 1
+            playersInventoryItemIds:
+            - playersInventoryItemIds
+            - playersInventoryItemIds
+            id: id
+      properties:
+        verification:
+          $ref: '#/components/schemas/player_purchase_appleappstore_response_verification'
+        rewards:
+          $ref: '#/components/schemas/player_purchase_virtual_response_rewards'
+      required:
+      - rewards
+      - verification
+      title: player-purchase-appleappstore-response
+      type: object
+      x-examples: {}
+    error-response-purchase-appleappstore-failed:
+      description: An error response sent back upon a redeem Apple App Store purchase.
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          description: e.g 409
+          type: integer
+        code:
+          description: For example 10204
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        data:
+          $ref: '#/components/schemas/player-purchase-appleappstore-response'
+      required:
+      - code
+      - data
+      - detail
+      - status
+      - title
+      - type
+      title: error-response-purchase-appleappstore-failed
+      type: object
+    player-purchase-googleplaystore-request:
+      properties:
+        id:
+          description: ID of the purchase.
+          maxLength: 50
+          pattern: "^[A-Z0-9_-]+$"
+          type: string
+        purchaseData:
+          description: A JSON encoded string returned from a successful in-app billing
+            purchase.
+          type: string
+        purchaseDataSignature:
+          description: A signature of the `purchaseData` returned from a successful
+            in-app billing purchase.
+          type: string
+        localCost:
+          description: "The cost of the purchase as an integer in the minor currency\
+            \ format, for example, $1.99 USD would be 199."
+          type: integer
+        localCurrency:
+          description: The ISO-4217 currency code with which the player purchased
+            the IAP.
+          example: USD
+          format: ISO-4217
+          type: string
+      required:
+      - id
+      - localCost
+      - localCurrency
+      - purchaseData
+      - purchaseDataSignature
+      title: player-purchase-googleplaystore-request
+      type: object
+    player-purchase-googleplaystore-response:
+      example:
+        verification:
+          store:
+            receipt: receipt
+          status: VALID
+        rewards:
+          currency:
+          - amount: 80082819046101
+            id: id
+          - amount: 80082819046101
+            id: id
+          inventory:
+          - amount: 1
+            playersInventoryItemIds:
+            - playersInventoryItemIds
+            - playersInventoryItemIds
+            id: id
+          - amount: 1
+            playersInventoryItemIds:
+            - playersInventoryItemIds
+            - playersInventoryItemIds
+            id: id
+      properties:
+        verification:
+          $ref: '#/components/schemas/player_purchase_googleplaystore_response_verification'
+        rewards:
+          $ref: '#/components/schemas/player_purchase_googleplaystore_response_rewards'
+      required:
+      - rewards
+      - verification
+      title: player-purchase-googleplaystore-response
+      type: object
+    error-response-purchase-googleplaystore-failed:
+      description: An error response sent back upon a redeem Google Play purchase.
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          description: e.g 409
+          type: integer
+        code:
+          description: For example 10204
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        data:
+          $ref: '#/components/schemas/player-purchase-googleplaystore-response'
+      required:
+      - code
+      - data
+      - detail
+      - status
+      - title
+      - type
+      title: error-response-purchase-googleplaystore-failed
+      type: object
+    player-configuration-response:
+      example:
+        metadata:
+          configAssignmentHash: configAssignmentHash
+        results:
+        - null
+        - null
+      properties:
+        metadata:
+          $ref: '#/components/schemas/player_configuration_response_metadata'
+        results:
+          description: Array of resource definitions.
+          items:
+            $ref: '#/components/schemas/player_configuration_response_results_inner'
+          type: array
+      required:
+      - configAssignmentHash
+      - results
+      title: player-configuration-response
+      type: object
+    currency-resource:
+      description: The definition for a economy resource that represents a currency.
+      properties:
+        id:
+          description: Identifier for the resource.
+          maxLength: 50
+          pattern: "^[A-Z0-9_-]+$"
+          type: string
+        name:
+          description: Name of the resource.
+          type: string
+        type:
+          description: "Type of the resource, for example `CURRENCY`, `INVENTORY_ITEM`,\
+            \ `VIRTUAL_PURCHASE`, `MONEY_PURCHASE`."
+          enum:
+          - CURRENCY
+          - INVENTORY_ITEM
+          - VIRTUAL_PURCHASE
+          - MONEY_PURCHASE
+          type: string
+        created:
+          $ref: '#/components/schemas/modified-metadata'
+        modified:
+          $ref: '#/components/schemas/modified-metadata'
+        initial:
+          type: integer
+        max:
+          type: integer
+        customData:
+          nullable: true
+          type: object
+      required:
+      - created
+      - id
+      - modified
+      - name
+      - type
+      title: Currency resource
+      type: object
+    inventory-item-resource:
+      description: The definition for a economy resource that represents a inventory
+        item.
+      properties:
+        id:
+          description: Identifier for the resource.
+          maxLength: 50
+          pattern: "^[A-Z0-9_-]+$"
+          type: string
+        name:
+          description: Name of the resource.
+          type: string
+        type:
+          description: "Type of the resource, for example `CURRENCY`, `INVENTORY_ITEM`,\
+            \ `VIRTUAL_PURCHASE`, `MONEY_PURCHASE`."
+          enum:
+          - INVENTORY_ITEM
+          type: string
+        created:
+          $ref: '#/components/schemas/modified-metadata'
+        modified:
+          $ref: '#/components/schemas/modified-metadata'
+        customData:
+          nullable: true
+          type: object
+      required:
+      - created
+      - id
+      - modified
+      - name
+      - type
+      title: Inventory item resource
+      type: object
+    virtual-purchase-resource:
+      description: The definition for a economy resource that represents a virtual
+        purchase.
+      properties:
+        id:
+          description: Identifier for the resource.
+          maxLength: 50
+          pattern: "^[A-Z0-9_-]+$"
+          type: string
+        name:
+          description: Name of the resource.
+          type: string
+        type:
+          description: "Type of the item, for example `CURRENCY`, `INVENTORY_ITEM`,\
+            \ `VIRTUAL_PURCHASE`, `MONEY_PURCHASE`."
+          enum:
+          - VIRTUAL_PURCHASE
+          type: string
+        created:
+          $ref: '#/components/schemas/modified-metadata'
+        modified:
+          $ref: '#/components/schemas/modified-metadata'
+        costs:
+          description: "The costs deducted from the player when making the purchase.\
+            \ A cost is an ID of a currency or inventory item, plus an amount."
+          items:
+            $ref: '#/components/schemas/cost'
+          type: array
+        rewards:
+          description: "The rewards credited to the player when making the purchase.\
+            \ A reward is composed of the ID of a currency or inventory item, the\
+            \ amount of that currency or item, and the default instance data (for\
+            \ inventory items)."
+          items:
+            $ref: '#/components/schemas/reward'
+          type: array
+        customData:
+          nullable: true
+          type: object
+      required:
+      - created
+      - id
+      - modified
+      - name
+      - type
+      title: Virtual purchase resource
+      type: object
+    real-money-purchase-resource:
+      description: The definition for a economy resource that represents a real money
+        purchase.
+      properties:
+        id:
+          description: ID of the resource.
+          maxLength: 50
+          pattern: "^[A-Z0-9_-]+$"
+          type: string
+        name:
+          description: A descriptive name for the resource.
+          maxLength: 50
+          type: string
+        type:
+          description: "Type of the item, for example `CURRENCY`, `INVENTORY_ITEM`,\
+            \ `VIRTUAL_PURCHASE`, `MONEY_PURCHASE`."
+          enum:
+          - MONEY_PURCHASE
+          type: string
+        storeIdentifiers:
+          $ref: '#/components/schemas/real_money_purchase_resource_storeIdentifiers'
+        rewards:
+          description: "The rewards credited to the player when making the purchase.\
+            \ A reward is composed of the ID of a currency or inventory item, the\
+            \ amount of that currency or item, and the default instance data (for\
+            \ inventory items)."
+          items:
+            $ref: '#/components/schemas/reward'
+          maxItems: 20
+          minItems: 0
+          type: array
+        customData:
+          description: Max size when serialised 5 KB.
+          nullable: true
+          type: object
+        created:
+          $ref: '#/components/schemas/modified-metadata'
+        modified:
+          $ref: '#/components/schemas/modified-metadata'
+      required:
+      - created
+      - customData
+      - id
+      - modified
+      - name
+      - rewards
+      - storeIdentifiers
+      - type
+      title: Real money purchase resource
+      type: object
+    cost:
+      properties:
+        resourceId:
+          description: The ID of the currency or inventory item that is deducted as
+            part of the purchase.
+          maxLength: 50
+          pattern: "^[A-Z0-9-_]+$"
+          type: string
+        amount:
+          description: The amount of the item deducted as part of the purchase.
+          maximum: 999999999999999
+          minimum: 1
+          type: integer
+      required:
+      - amount
+      - resourceId
+      type: object
+    reward:
+      properties:
+        resourceId:
+          description: The ID of a currency or inventory item resource that is credited
+            as part of the purchase.
+          maxLength: 50
+          pattern: "^[A-Z0-9-_]+$"
+          type: string
+        amount:
+          description: The amount of the resource credited as part of the purchase.
+          maximum: 999999999999999
+          minimum: 1
+          type: integer
+        defaultInstanceData:
+          deprecated: true
+          description: "When the reward is an inventory item resource, this specifies\
+            \ instance data automatically saved against the new inventory item. Max\
+            \ size when serialised 5 KB. This property has been deprecated and will\
+            \ only return \"null\"."
+          nullable: true
+          type: object
+      required:
+      - amount
+      - resourceId
+      type: object
+    player_currency_balance_response_links:
+      example:
+        next: next
+      properties:
+        next:
+          description: Contains the URL path for requesting the next page of results.
+            This value is `null` when there are no pages remaining.
+          nullable: true
+          type: string
+      required:
+      - next
+      type: object
+    player_currency_balance_response:
+      example:
+        links:
+          next: next
+        results:
+        - writeLock: writeLock
+          balance: 80082819046101
+          created:
+            date: 2020-04-01T13:07:23Z
+          modified:
+            date: 2020-04-01T13:07:23Z
+          currencyId: currencyId
+        - writeLock: writeLock
+          balance: 80082819046101
+          created:
+            date: 2020-04-01T13:07:23Z
+          modified:
+            date: 2020-04-01T13:07:23Z
+          currencyId: currencyId
+      properties:
+        results:
+          description: List of currency balances.
+          items:
+            $ref: '#/components/schemas/currency-balance-response'
+          type: array
+        links:
+          $ref: '#/components/schemas/player_currency_balance_response_links'
+      required:
+      - links
+      - results
+      title: player-currency-balance-response
+      type: object
+    setPlayerCurrencyBalance_400_response:
+      discriminator:
+        mapping:
+          problems/basic: '#/components/schemas/basic-error-response'
+          problems/validation: '#/components/schemas/validation-error-response'
+        propertyName: type
+      oneOf:
+      - $ref: '#/components/schemas/basic-error-response'
+      - $ref: '#/components/schemas/validation-error-response'
+    player_inventory_response:
+      example:
+        links:
+          next: next
+        results:
+        - inventoryItemId: inventoryItemId
+          playersInventoryItemId: playersInventoryItemId
+          writeLock: writeLock
+          created:
+            date: 2020-04-01T13:07:23Z
+          modified:
+            date: 2020-04-01T13:07:23Z
+          instanceData: "{}"
+        - inventoryItemId: inventoryItemId
+          playersInventoryItemId: playersInventoryItemId
+          writeLock: writeLock
+          created:
+            date: 2020-04-01T13:07:23Z
+          modified:
+            date: 2020-04-01T13:07:23Z
+          instanceData: "{}"
+      properties:
+        results:
+          description: List of player's inventory items.
+          items:
+            $ref: '#/components/schemas/inventory-response'
+          type: array
+        links:
+          $ref: '#/components/schemas/player_currency_balance_response_links'
+      required:
+      - links
+      - results
+      title: player-inventory-response
+      type: object
+    redeemAppleAppStorePurchase_422_response:
+      discriminator:
+        mapping:
+          "10507": '#/components/schemas/error-response-purchase-appleappstore-failed'
+          "10506": '#/components/schemas/error-response-purchase-appleappstore-failed'
+          "10502": '#/components/schemas/error-response-purchase-appleappstore-failed'
+          "10503": '#/components/schemas/error-response-purchase-appleappstore-failed'
+          "10201": '#/components/schemas/error-response-purchase-appleappstore-failed'
+          "1007": '#/components/schemas/basic-error-response'
+          "1008": '#/components/schemas/basic-error-response'
+        propertyName: code
+      oneOf:
+      - $ref: '#/components/schemas/error-response-purchase-appleappstore-failed'
+      - $ref: '#/components/schemas/basic-error-response'
+    redeemGooglePlayPurchase_422_response:
+      discriminator:
+        mapping:
+          "10507": '#/components/schemas/error-response-purchase-googleplaystore-failed'
+          "10506": '#/components/schemas/error-response-purchase-googleplaystore-failed'
+          "10502": '#/components/schemas/error-response-purchase-googleplaystore-failed'
+          "10503": '#/components/schemas/error-response-purchase-googleplaystore-failed'
+          "10201": '#/components/schemas/error-response-purchase-googleplaystore-failed'
+          "1007": '#/components/schemas/basic-error-response'
+          "1008": '#/components/schemas/basic-error-response'
+          "8004": '#/components/schemas/basic-error-response'
+        propertyName: code
+      oneOf:
+      - $ref: '#/components/schemas/error-response-purchase-googleplaystore-failed'
+      - $ref: '#/components/schemas/basic-error-response'
+    error_response_conflict_currency_balance_data:
+      properties:
+        attempted:
+          $ref: '#/components/schemas/currency-balance-request'
+        existing:
+          allOf:
+          - $ref: '#/components/schemas/currency-balance-response'
+          nullable: true
+      required:
+      - attempted
+      - existing
+      type: object
+    error_response_conflict_inventory_update_data:
+      properties:
+        attempted:
+          $ref: '#/components/schemas/add-inventory-request'
+        existing:
+          allOf:
+          - $ref: '#/components/schemas/inventory-response'
+          nullable: true
+      required:
+      - attempted
+      - existing
+      type: object
+    error_response_conflict_inventory_delete_data_attempted:
+      properties:
+        writeLock:
+          description: The write lock for the inventory item instance.
+          type: string
+      type: object
+    error_response_conflict_inventory_delete_data:
+      properties:
+        attempted:
+          $ref: '#/components/schemas/error_response_conflict_inventory_delete_data_attempted'
+        existing:
+          $ref: '#/components/schemas/inventory-response'
+      required:
+      - attempted
+      - existing
+      type: object
+    player_purchase_virtual_response_costs:
+      description: Costs of the purchase.
+      example:
+        currency:
+        - amount: 80082819046101
+          id: id
+        - amount: 80082819046101
+          id: id
+        inventory:
+        - amount: 1
+          playersInventoryItemIds:
+          - playersInventoryItemIds
+          - playersInventoryItemIds
+          id: id
+        - amount: 1
+          playersInventoryItemIds:
+          - playersInventoryItemIds
+          - playersInventoryItemIds
+          id: id
+      properties:
+        currency:
+          description: Currency that was deducted in the purchase.
+          items:
+            $ref: '#/components/schemas/currency-exchange-item'
+          minItems: 0
+          type: array
+        inventory:
+          description: Inventory that was deducted in the purchase.
+          items:
+            $ref: '#/components/schemas/inventory-exchange-item'
+          minItems: 0
+          type: array
+      required:
+      - Currency
+      - inventory
+      type: object
+    player_purchase_virtual_response_rewards:
+      description: Rewards of the purchase.
+      example:
+        currency:
+        - amount: 80082819046101
+          id: id
+        - amount: 80082819046101
+          id: id
+        inventory:
+        - amount: 1
+          playersInventoryItemIds:
+          - playersInventoryItemIds
+          - playersInventoryItemIds
+          id: id
+        - amount: 1
+          playersInventoryItemIds:
+          - playersInventoryItemIds
+          - playersInventoryItemIds
+          id: id
+      properties:
+        currency:
+          description: Currency that was credited in the purchase.
+          items:
+            $ref: '#/components/schemas/currency-exchange-item'
+          minItems: 0
+          type: array
+        inventory:
+          description: Inventory that was credited in the purchase.
+          items:
+            $ref: '#/components/schemas/inventory-exchange-item'
+          minItems: 0
+          type: array
+      required:
+      - Currency
+      - inventory
+      type: object
+    player_purchase_appleappstore_response_verification_store:
+      description: Details from the receipt validation service.
+      example:
+        code: code
+        receipt: receipt
+        message: message
+      properties:
+        code:
+          description: The status code sent back from the Apple App Store verification
+            service.
+          nullable: false
+          type: string
+        message:
+          description: A textual description of the returned status code.
+          nullable: false
+          type: string
+        receipt:
+          description: The full response from the Apple App Store verification service
+            as a JSON encoded string.
+          nullable: false
+          type: string
+      required:
+      - code
+      - message
+      - receipt
+      type: object
+    player_purchase_appleappstore_response_verification:
+      example:
+        store:
+          code: code
+          receipt: receipt
+          message: message
+        status: VALID
+      properties:
+        status:
+          description: "Status of the receipt verification. \n* `VALID`: The purchase\
+            \ was valid. \n* `VALID_NOT_REDEEMED`: The purchase was valid but seen\
+            \ before, and had not yet been redeemed. \n* `INVALID_ALREADY_REDEEMED`:\
+            \ The purchase has already been redeemed. \n* `INVALID_VERIFICATION_FAILED`:\
+            \ The receipt verification Service returned that the receipt data was\
+            \ not valid. \n* `INVALID_ANOTHER_PLAYER`: The receipt has previously\
+            \ been used by a different player and validated. \n* `INVALID_CONFIGURATION`:\
+            \ The service configuration is invalid, further information in the details\
+            \ section of the response. \n* `INVALID_PRODUCT_ID_MISMATCH`: The purchase\
+            \ configuration store product identifier does not match the one in the\
+            \ receipt.\n* `CURRENCY_MAX_EXCEEDED`: Could not add the rewards because\
+            \ one or more currencies would be taken over the specified maximum balance."
+          enum:
+          - VALID
+          - VALID_NOT_REDEEMED
+          - INVALID_ALREADY_REDEEMED
+          - INVALID_VERIFICATION_FAILED
+          - INVALID_ANOTHER_PLAYER
+          - INVALID_CONFIGURATION
+          - INVALID_PRODUCT_ID_MISMATCH
+          - CURRENCY_MAX_EXCEEDED
+          example: VALID
+          type: string
+        store:
+          $ref: '#/components/schemas/player_purchase_appleappstore_response_verification_store'
+      required:
+      - status
+      - store
+      type: object
+    player_purchase_googleplaystore_response_verification_store:
+      description: Details from the receipt validation service.
+      example:
+        receipt: receipt
+      properties:
+        receipt:
+          description: Receipt that was sent in the request
+          type: string
+      type: object
+    player_purchase_googleplaystore_response_verification:
+      example:
+        store:
+          receipt: receipt
+        status: VALID
+      properties:
+        status:
+          description: "Status of the receipt verification. \n* `VALID`: The purchase\
+            \ was valid. \n* `VALID_NOT_REDEEMED`: The purchase was valid but seen\
+            \ before, and had not yet been redeemed. \n* `INVALID_ALREADY_REDEEMED`:\
+            \ The purchase has already been redeemed. \n* `INVALID_VERIFICATION_FAILED`:\
+            \ The receipt verification Service returned that the receipt data was\
+            \ not valid. \n* `INVALID_ANOTHER_PLAYER`: The receipt has previously\
+            \ been used by a different player and validated. \n* `INVALID_CONFIGURATION`:\
+            \ The service configuration is invalid, further information in the details\
+            \ section of the response. \n* `INVALID_PRODUCT_ID_MISMATCH`: The purchase\
+            \ configuration store product identifier does not match the one in the\
+            \ receipt.\n* `CURRENCY_MAX_EXCEEDED`: Could not add the rewards because\
+            \ one or more currencies would be taken over the specified maximum balance."
+          enum:
+          - VALID
+          - VALID_NOT_REDEEMED
+          - INVALID_ALREADY_REDEEMED
+          - INVALID_VERIFICATION_FAILED
+          - INVALID_ANOTHER_PLAYER
+          - INVALID_CONFIGURATION
+          - INVALID_PRODUCT_ID_MISMATCH
+          - CURRENCY_MAX_EXCEEDED
+          example: VALID
+          type: string
+        store:
+          $ref: '#/components/schemas/player_purchase_googleplaystore_response_verification_store'
+      required:
+      - status
+      - store
+      type: object
+    player_purchase_googleplaystore_response_rewards:
+      description: Rewards of the purchase.
+      example:
+        currency:
+        - amount: 80082819046101
+          id: id
+        - amount: 80082819046101
+          id: id
+        inventory:
+        - amount: 1
+          playersInventoryItemIds:
+          - playersInventoryItemIds
+          - playersInventoryItemIds
+          id: id
+        - amount: 1
+          playersInventoryItemIds:
+          - playersInventoryItemIds
+          - playersInventoryItemIds
+          id: id
+      properties:
+        currency:
+          description: Currency that was credited in the purchase.
+          items:
+            $ref: '#/components/schemas/currency-exchange-item'
+          minItems: 0
+          type: array
+        inventory:
+          description: Inventory that was credited in the purchase.
+          items:
+            $ref: '#/components/schemas/inventory-exchange-item'
+          minItems: 0
+          type: array
+      required:
+      - currency
+      - inventory
+      type: object
+    player_configuration_response_metadata:
+      description: Contains information about the results.
+      example:
+        configAssignmentHash: configAssignmentHash
+      properties:
+        configAssignmentHash:
+          description: Hash representing the exact version of the configuration in
+            the response.
+          type: string
+      type: object
+    player_configuration_response_results_inner:
+      discriminator:
+        mapping:
+          CURRENCY: '#/components/schemas/currency-resource'
+          INVENTORY_ITEM: '#/components/schemas/inventory-item-resource'
+          VIRTUAL_PURCHASE: '#/components/schemas/virtual-purchase-resource'
+          MONEY_PURCHASE: '#/components/schemas/real-money-purchase-resource'
+        propertyName: type
+      oneOf:
+      - $ref: '#/components/schemas/currency-resource'
+      - $ref: '#/components/schemas/inventory-item-resource'
+      - $ref: '#/components/schemas/virtual-purchase-resource'
+      - $ref: '#/components/schemas/real-money-purchase-resource'
+    real_money_purchase_resource_storeIdentifiers:
+      description: Store identifiers.
+      minProperties: 1
+      properties:
+        appleAppStore:
+          description: Apple App Store identifier.
+          type: string
+        googlePlayStore:
+          description: Google Play Store identifier.
+          type: string
+      type: object
+  securitySchemes:
+    Client:
+      description: "To get started with Authentication, please visit the [Client Authentication\
+        \ section](https://services.docs.unity.com/docs/client-auth)."
+      scheme: bearer
+      type: http
+x-tagGroups:
+- name: Endpoints
+  tags:
+  - Configuration
+  - Currencies
+  - Inventory
+  - Purchases
